@@ -120,7 +120,7 @@ class Dashboard(tk.Tk):
                     raise Exception("Response too short or empty.")
 
             # Reopen the port for long-term use
-            self.serial_port = serial.Serial(port, 8192, timeout=0.5)
+            self.serial_port = serial.Serial(port, 8192, timeout=1.5)
             self.status.set(f"Connected to {port} – ECU responded")
             self.simulate.set(False)
             self.update_loop()
@@ -156,20 +156,25 @@ class Dashboard(tk.Tk):
         try:
             if self.serial_port is None:
                 port = self.manual_port.get() or ("COM3" if platform.system() == "Windows" else "/dev/ttyUSB0")
-                self.serial_port = serial.Serial(port, 8192, timeout=1)
+                self.serial_port = serial.Serial(port, 8192, timeout=1.5)
                 self.status.set(f"Status: Connected ({port})")
-            self.serial_port.write(b"\xF4\x56\x01")
-            self.error_output.insert("end", "[READ] Sent request to ECU\n")
+
+            # ECU-Abfrage senden (jetzt mit B4 wie im Diagnosetest)
+            self.serial_port.write(b"\xF4\x56\x01\xB4")
+            self.error_output.insert("end", f"{time.strftime('%H:%M:%S')} - [SEND] F4 56 01 B4\n")
+
+            # Antwort lesen
             response = self.serial_port.read(64)
-            self.error_output.insert("end", f"[READ] Response: {response.hex()}\n")
+            self.error_output.insert("end", f"{time.strftime('%H:%M:%S')} - [RECV] {response.hex()}\n")
             self.error_output.see("end")
+
             idx = int(val["byte"])
             if idx < len(response):
                 raw = response[idx]
                 return raw * float(val.get("factor", 1.0)) + float(val.get("offset", 0.0))
         except Exception as e:
             self.status.set(f"Status: Connection error – Attempt {self.retry_count + 1}/{MAX_RETRIES}")
-            self.error_output.insert("end", f"{time.strftime('%H:%M:%S')} - {e}\n")
+            self.error_output.insert("end", f"{time.strftime('%H:%M:%S')} - [ERROR] {e}\n")
             self.error_output.see("end")
             self.serial_port = None
             self.retry_count += 1
@@ -177,6 +182,7 @@ class Dashboard(tk.Tk):
                 self.simulate.set(True)
                 self.status.set("Status: Connection failed – switched to simulation mode")
         return 0.0
+
 
     def write_log(self, row):
         file_exists = os.path.isfile(LOG_FILE)
