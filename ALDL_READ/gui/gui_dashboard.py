@@ -2,6 +2,12 @@
 """
 Dashboard GUI for ALDL reader with profile selection, logging, and diagnostics.
 """
+try:
+    with open("version.txt", "r") as f:
+        version = f.read().strip()
+except FileNotFoundError:
+    version = "unknown"
+last_change = "2025-04-10-2100"
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -40,6 +46,7 @@ class Dashboard(tk.Tk):
         layout.pack(fill="both", expand=True, padx=20, pady=20)
         config = tk.Frame(layout, bg="black")
         config.grid(row=0, column=0, sticky="n")
+        ttk.Label(config, text=(version, last_change), font=("Arial", 14)).pack(anchor="w", pady=5)
         ttk.Label(config, text="Select vehicle profile:", font=("Arial", 14)).pack(anchor="w", pady=5)
         self.profile_menu = ttk.Combobox(config, textvariable=self.selected_profile, state="readonly", width=40)
         self.profile_menu.pack(anchor="w", pady=5)
@@ -98,35 +105,6 @@ class Dashboard(tk.Tk):
         self.retry_count = 0
         self.update_loop()
 
-    
-
-    def connect_to_device(self):
-        import time
-        port = self.manual_port.get() or ("COM3" if platform.system() == "Windows" else "/dev/ttyUSB0")
-        try:
-            # Use short test first (like DIAG)
-            with serial.Serial(port, 8192, timeout=0.5) as test_serial:
-                time.sleep(0.2)
-                test_serial.write(b"\xF4\x56\x01\xB4")
-                response = test_serial.read(64)
-                self.error_output.insert("end", f"[CONNECT TEST] Response: {response.hex()}\n")
-                self.error_output.see("end")
-                if len(response) < 5:
-                    raise Exception("Response too short or empty.")
-
-            # Reopen the port for long-term use
-            self.serial_port = serial.Serial(port, 8192, timeout=0.5)
-            self.status.set(f"Connected to {port} – ECU responded")
-            self.simulate.set(False)
-            self.update_loop()
-        except Exception as e:
-            self.status.set("Failed to connect – switched to simulation")
-            self.error_output.insert("end", f"[CONNECT ERROR] {e}\n")
-            self.error_output.see("end")
-            self.simulate.set(True)
-            self.update_loop()
-
-
     def connect_to_device(self):
         import time
         port = self.manual_port.get() or ("COM3" if platform.system() == "Windows" else "/dev/ttyUSB0")
@@ -154,7 +132,6 @@ class Dashboard(tk.Tk):
             self.update_loop()
 
     def update_loop(self):
-
         row = {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}
         for val in self.value_map:
             key = val["name"]
